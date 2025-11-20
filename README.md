@@ -10,33 +10,21 @@ Installing and setting up a full monitoring solution has not always been possibi
 
 This project aims to provide a lightweight solution to this type of issue.
 
-# Design
+## Design
 
-## Server
-
-Reback server listens for agents reporting back, simply.
-
-It listens on a specified port, and periodically sends a broadcast ping to allow clients to auto-discover the server in case it moves.
+Reback acts both as server and agent. Each agent broadcasts a single UDP packet periodically containing its hostname and currrent load, and optionally a tag string, with a pingout identifier (application layer information), from which other agents derive the IP and MAC. On receiving a pingout from any other agent, a receiving agent simply records the information to stdout.
 
 ```sh
-reback server [-p PORT] [-P periodicity] [-B broadcast_ip] [-l logfile] [-T tags]
+reback [-p PORT] [-T TAGS] [-A] [-P PERIODICITY] BROADCAST_IP
 ```
 
-It records a report from an agent in a local filesystem with files named after the agent's identifier, with a timestamp
-
-If tags (`-T tags`) is specified, the server will only record agents advertising with any of the given tags.
-
-## Agent
-
-The reback agent periodically pings the target server it is configured to talk to (`-t target`). It sends its hostname, uptime, free memory and load averages as standard. The server determines its IP and MAC from the network packet.
-
-If a script file is specified (`-s scriptfile`), that script is executed, and the output is attached as gzip+base64 payload.
-
-If "discovery" mode is enabled (`-D`), it will listen for server ping broadcasts, and also report to such self-announced servers. If the self-broadcasting server is not heard from again wthin a period of time (`-F forget_time`), the agent will stop reporting to it.
-
-The agent can also specify tags with its ping, which servers can optionally use to filter on.
-
-```sh
-reback agent [-t main_target] [-D] [-s scriptfile] [-F forget_time] [-T tags]
-```
-
+* `BROADCAST_IP` - the broadcast IP to send pingouts to
+* `-p PORT` - the port to listen and broadcast on. All agents should use the same port
+    * default `42324`
+* `-T TAGS` - an agent can specify tags, in which case it will only record pingouts that carry at least one tag in common
+    * default empty - agent sends no tags, and records all
+* `-A` - record all, even if tags were specififed
+* `-P PERIODICITY` - how frequently to send a pingout, in seconds
+    * default 30
+    * if `prime` is specified, uses a random choice from `17, 19, 23, 29, 31, 37, 41` (to be checked) (prime numbers)
+    * if `random` is specified, chooses a new prime number after each pingout
