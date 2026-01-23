@@ -14,36 +14,6 @@ class ParseError(Exception):
     pass
 
 
-def cli_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("scopes", help="Scope filters - only display NICs with all specified scopes", nargs="*")
-    parser.add_argument("--ip4", "-4", help="Do not print full output, print IPv4 address", action="store_true")
-    parser.add_argument("--ip6", "-6", help="Do not print full output, print IPv6 address", action="store_true")
-    parser.add_argument("--name", "-n", help="Do not print full output, print NIC name", action="store_true")
-    parser.add_argument("--state", "-s", help="Do not print full output, print NIC state", action="store_true")
-    parser.add_argument("--mac", "-m", help="Do not print full output, print NIC MAC address", action="store_true")
-    parser.add_argument("--type", "-t", help="Do not print full output, print NIC type", action="store_true")
-    parser.add_argument("--scope4", "-c", help="Do not print full output, print IPv4 scopes", action="store_true")
-    parser.add_argument("--scope6", "-C", help="Do not print full output, print IPv6 scopes", action="store_true")
-    parser.add_argument("--force-ip-print", "-F", help="When printing IPs selectively, forcibly print a string where IP should be", action="store_true")
-    parser.add_argument("--my-ip", "-M", help="Display my LAN-reachable IP addresses", action="store_true")
-    parser.add_argument("--short-all", "-S", help="Print details in single-line", action="store_true")
-
-    args = parser.parse_args()
-    non_flattening_options = ["scopes", "force_ip_print", "my_ip"]
-
-    if args.short_all:
-        [setattr(args, prop, True) for prop in dir(args) if not prop.startswith("_") and not prop == "scopes"]
-
-    if args.my_ip:
-        args.scopes = ["noprefixroute", "global"]
-
-    booltypes = [getattr(args, prop) for prop in dir(args) if not prop.startswith("_") and not prop in non_flattening_options]
-    args.defaults = not any(booltypes)
-
-    return args
-
 class NIC:
     def __init__(self, name, state):
         self.name = name
@@ -67,12 +37,39 @@ class NIC:
         return '\n'.join(detail)
 
 
+def cli_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("scopes", help="Scope filters - only display NICs with all specified scopes", nargs="*")
+    parser.add_argument("--ip4", "-4", help="Do not print full output, print IPv4 address", action="store_true")
+    parser.add_argument("--ip6", "-6", help="Do not print full output, print IPv6 address", action="store_true")
+    parser.add_argument("--name", "-n", help="Do not print full output, print NIC name", action="store_true")
+    parser.add_argument("--state", "-s", help="Do not print full output, print NIC state", action="store_true")
+    parser.add_argument("--mac", "-m", help="Do not print full output, print NIC MAC address", action="store_true")
+    parser.add_argument("--type", "-t", help="Do not print full output, print NIC type", action="store_true")
+    parser.add_argument("--scope4", "-c", help="Do not print full output, print IPv4 scopes", action="store_true")
+    parser.add_argument("--scope6", "-C", help="Do not print full output, print IPv6 scopes", action="store_true")
+    parser.add_argument("--force-ip-print", "-F", help="When printing IPs selectively, forcibly print a string where IP should be", action="store_true")
+    parser.add_argument("--my-ip", "-M", help="Display my LAN-reachable IP addresses", action="store_true")
+    parser.add_argument("--short-all", "-S", help="Print details in single-line", action="store_true")
+
+    args = parser.parse_args()
+    non_flattening_options = ["scopes", "force_ip_print", "my_ip"]
+
+    if args.short_all:
+        [setattr(args, prop, True) for prop in dir(args) if not prop.startswith("_") and not prop == "scopes"]
+
+    booltypes = [getattr(args, prop) for prop in dir(args) if not prop.startswith("_") and not prop in non_flattening_options]
+    args.defaults = not any(booltypes)
+
+    return args
+
+
 def parse_ipa(data):
     lines = data.split("\n")
-    # 1. break into blocks
-    # 2. extract each block
     nics = []
     current_nic = None
+
     for L in lines:
         if m := re.match(r'\d+: ([a-z0-9@]+):.*?state ([A-Z]+)', L):
             if current_nic:
@@ -97,6 +94,18 @@ def parse_ipa(data):
     return nics
 
 
+def find_default_route_devicenames():
+    proc = Popen(["ip", "r"], stdout=PIPE)
+    stdout, _ = proc.communicate()
+
+    defaults = []
+    for line in str(stdout, 'utf-8').split("\n"):
+        if "default via" in line:
+            m = re.match(".+?dev ([a-zA-Z0-9@]+)", line)
+            defaults.append(m.group(1))
+    return defaults
+
+
 def main():
     args = cli_args()
     proc = Popen(["ip", "a"], stdout=PIPE)
@@ -105,6 +114,14 @@ def main():
 
     if args.scopes:
         nics = filter_scopes(nics, args.scopes)
+
+    if args.my_ip:
+        names = find_default_route_devicenames()
+        if not names:
+            print("No default route detected")
+            exit(1)
+        else:
+            nics = [nic for nic in nics if nic.name in names]
 
     if args.defaults:
         [print(nic) for nic in nics]
@@ -134,8 +151,10 @@ def main():
                 details.append(f"SCOPES6={repr(nic.ip6scopes)}")
             print(' '.join(details) )
 
+
 def _or(val, check):
     return check if check else val
+
 
 def filter_scopes(nics, scopes):
     remain = []
