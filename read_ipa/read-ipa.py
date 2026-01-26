@@ -43,6 +43,7 @@ def cli_args():
     parser.add_argument("scopes", help="Scope filters - only display NICs with all specified scopes", nargs="*")
     parser.add_argument("--ip4", "-4", help="Do not print full output, print IPv4 address", action="store_true")
     parser.add_argument("--ip6", "-6", help="Do not print full output, print IPv6 address", action="store_true")
+    parser.add_argument("--has-ip", "-P", help="Only print NICs which do have an IP (either IPv4 or IPv6)", action="store_true")
     parser.add_argument("--name", "-n", help="Do not print full output, print NIC name", action="store_true")
     parser.add_argument("--state", "-s", help="Do not print full output, print NIC state", action="store_true")
     parser.add_argument("--mac", "-m", help="Do not print full output, print NIC MAC address", action="store_true")
@@ -54,10 +55,10 @@ def cli_args():
     parser.add_argument("--short-all", "-S", help="Print details in single-line", action="store_true")
 
     args = parser.parse_args()
-    non_flattening_options = ["scopes", "force_ip_print", "my_ip"]
+    non_flattening_options = ["scopes", "force_ip_print", "my_ip", "has_ip"]
 
     if args.short_all:
-        [setattr(args, prop, True) for prop in dir(args) if not prop.startswith("_") and not prop in ["scopes", "my_ip"] ]
+        [setattr(args, prop, True) for prop in dir(args) if not prop.startswith("_") and not prop in ["scopes", "my_ip", "has_ip"] ]
 
     booltypes = [getattr(args, prop) for prop in dir(args) if not prop.startswith("_") and not prop in non_flattening_options]
     args.defaults = not any(booltypes)
@@ -123,11 +124,16 @@ def main():
         else:
             nics = [nic for nic in nics if nic.name in names]
 
+    print_all = not args.has_ip
     if args.defaults:
-        [print(nic) for nic in nics]
+        [print(nic) for nic in nics if print_all or (nic.ip4ip or nic.ip6ip)]
     else:
         for nic in nics:
+            if not print_all and not (nic.ip4ip or nic.ip6ip):
+                continue
+
             details = []
+
             if args.force_ip_print:
                 nic.ip4ip = _or('NO_IP4', nic.ip4ip)
                 nic.ip6ip = _or('NO_IP6', nic.ip6ip)
@@ -149,7 +155,8 @@ def main():
                 details.append(f"SCOPES4={repr(nic.ip4scopes)}")
             if args.scope6:
                 details.append(f"SCOPES6={repr(nic.ip6scopes)}")
-            print(' '.join(details) )
+            if details:
+                print(' '.join(details) )
 
 
 def _or(val, check):
