@@ -23,20 +23,19 @@ reback start [OPTIONS ...] BROADCAST_IP
 * `BROADCAST_IP` - the broadcast IP to send pingouts to
 * `-p PORT` - the port to listen and broadcast on. All agents should use the same port
     * default `42324`
-* `-Q QUERIES_PORT` - HTTP listener for queries
-* `-T TAGS` - an agent can specify tags, in which case it will only record pingouts that carry at least one tag in common
-    * default empty - agent sends no tags, and records all
-* `-A` - record all, even if tags were specififed
+* `-Q QUERIES_PORT` - HTTP listener for queries. If not specified, HTTP query endpoint does not activate
+* `-C CHANNELS` - an agent can specify channels, in which case it will only record pingouts that carry at least one channel in common
+    * default empty - agent restricts to no channels, and records all
+* `-A` - record all, even if channels were specififed
     * default `false`
 * `-P PERIODICITY` - how frequently to send a pingout, in seconds
-    * default `30`
+    * default `60`
     * if `prime` is specified, uses a random choice from `17, 19, 23, 29, 31, 37, 41` (to be checked) (prime numbers)
     * if `random` is specified, chooses a new prime number from the above list after each pingout sent
 * `-r RETAIN_COUNT` - retain last entry for `RETAIN_COUNT` number of peers
     * default `20`
 * `-I INFO_SCRIPT` - path to a script to run when queried for information
     * default is to run `uptime` and send the output
-* `-C CALLBACK` - a local callback command that gets called as a subprocess with each newly received pingout
 
 ## Unique identifiers and Retention
 
